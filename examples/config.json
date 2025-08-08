@@ -1,0 +1,16 @@
+{
+  "name": "My Arma Reforger Server",
+  "password": "",
+  "adminPassword": "change_me",
+  "scenarioId": "some_scenario",
+  "maxPlayers": 32,
+  "visible": true,
+  "crossPlatform": true,
+  "gameProperties": {
+    "maxViewDistance": 2500,
+    "disableThirdPerson": false,
+    "networkTickRate": 60,
+    "bandwidthLimit": 100000
+  },
+  "mods": []
+}

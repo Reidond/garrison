@@ -1,0 +1,212 @@
+package systemd
+
+import (
+	"fmt"
+	"io/ioutil"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+)
+
+const (
+	ServiceName = "garrison-arma-reforger.service"
+)
+
+type paths struct {
+	Base     string
+	App      string
+	Profiles string
+	Config   string
+	Logs     string
+	Cache    string
+	UnitDir  string
+	Unit     string
+}
+
+func computePaths() (paths, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return paths{}, err
+	}
+	dataHome := firstNonEmpty(os.Getenv("XDG_DATA_HOME"), filepath.Join(home, ".local", "share"))
+	cacheHome := firstNonEmpty(os.Getenv("XDG_CACHE_HOME"), filepath.Join(home, ".cache"))
+	stateHome := firstNonEmpty(os.Getenv("XDG_STATE_HOME"), filepath.Join(home, ".local", "state"))
+	configHome := firstNonEmpty(os.Getenv("XDG_CONFIG_HOME"), filepath.Join(home, ".config"))
+
+	base := filepath.Join(dataHome, "garrison", "arma-reforger")
+	p := paths{
+		Base:     base,
+		App:      filepath.Join(base, "app"),
+		Profiles: filepath.Join(base, "profiles"),
+		Config:   filepath.Join(base, "profiles", "config.json"),
+		Logs:     filepath.Join(stateHome, "garrison", "arma-reforger"),
+		Cache:    filepath.Join(cacheHome, "garrison", "steamcmd"),
+		UnitDir:  filepath.Join(configHome, "systemd", "user"),
+		Unit:     filepath.Join(configHome, "systemd", "user", ServiceName),
+	}
+	return p, nil
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if strings.TrimSpace(v) != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+func RunSteamcmdTransient(appID string, validate bool) error {
+	p, err := computePaths()
+	if err != nil {
+		return err
+	}
+	validateFlag := ""
+	if validate {
+		validateFlag = " validate"
+	}
+	args := []string{
+		"systemd-run", "--user", "--collect", "--wait", "--unit=garrison-scmd-arma-reforger",
+		"-p", "WorkingDirectory=" + p.Base,
+		"-p", "UMask=0077",
+		"-p", "NoNewPrivileges=yes",
+		"-p", "PrivateTmp=yes",
+		"-p", "PrivateDevices=yes",
+		"-p", "ProtectSystem=strict",
+		"-p", "ProtectKernelTunables=yes",
+		"-p", "ProtectKernelModules=yes",
+		"-p", "ProtectControlGroups=yes",
+		"-p", "RestrictAddressFamilies=AF_INET,AF_INET6,AF_UNIX",
+		"-p", "RestrictNamespaces=yes",
+		"-p", "RestrictRealtime=yes",
+		"-p", "LockPersonality=yes",
+		"-p", "CapabilityBoundingSet=",
+		"-p", "ReadWritePaths=" + p.Base,
+		"-p", "ReadWritePaths=" + p.Cache,
+		"-p", "ReadWritePaths=" + p.Logs,
+		"/usr/bin/bash", "-lc",
+		fmt.Sprintf("mkdir -p '%s' '%s' '%s' '%s'; export HOME=%s PATH=$PATH; ${GARRISON_STEAMCMD_BIN:-steamcmd} +force_install_dir %s +login anonymous +app_update %s%s +quit",
+			p.Base, p.Profiles, p.Cache, p.Logs, p.Cache, p.App, appID, validateFlag),
+	}
+	return runUserCommand(args[0], args[1:]...)
+}
+
+func InstallAndStartUnit(appID string, port, qport, bport int, extra string) error {
+	p, err := computePaths()
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(p.UnitDir, 0o755); err != nil {
+		return err
+	}
+	unitContent := buildUnit(appID, port, qport, bport, extra, p)
+	tmpFile, err := ioutil.TempFile("", "garrison-arma-reforger-*.service")
+	if err != nil {
+		return err
+	}
+	tmpPath := tmpFile.Name()
+	if _, err := tmpFile.WriteString(unitContent); err != nil {
+		_ = tmpFile.Close()
+		_ = os.Remove(tmpPath)
+		return err
+	}
+	_ = tmpFile.Close()
+	if err := os.Rename(tmpPath, p.Unit); err != nil {
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("install unit: %w", err)
+	}
+	if err := runUserCommand("systemctl", "--user", "daemon-reload"); err != nil {
+		return err
+	}
+	_ = runUserCommand("systemctl", "--user", "enable", ServiceName)
+	if err := runUserCommand("systemctl", "--user", "start", ServiceName); err != nil {
+		return err
+	}
+	fmt.Printf("Started via systemd --user: %s\n", ServiceName)
+	return nil
+}
+
+func Stop() error {
+	if err := runUserCommand("systemctl", "--user", "stop", ServiceName); err != nil {
+		return err
+	}
+	fmt.Println("Arma Reforger server stopped (systemd --user)")
+	return nil
+}
+
+func Status() error {
+	cmd := exec.Command("systemctl", "--user", "is-active", ServiceName)
+	out, err := cmd.CombinedOutput()
+	state := strings.TrimSpace(string(out))
+	if err == nil && state == "active" {
+		fmt.Println("running (systemd --user)")
+		return nil
+	}
+	if state == "inactive" || state == "failed" || state == "deactivating" || state == "activating" {
+		fmt.Println(state)
+		return nil
+	}
+	_ = runUserCommand("systemctl", "--user", "status", "--no-pager", ServiceName)
+	return nil
+}
+
+func buildUnit(appID string, port, qport, bport int, extra string, p paths) string {
+	args := []string{
+		fmt.Sprintf("-config=%s", p.Config),
+		fmt.Sprintf("-profile=%s", p.Profiles),
+		fmt.Sprintf("-port=%d", port),
+		fmt.Sprintf("-queryPort=%d", qport),
+		fmt.Sprintf("-steamQueryPort=%d", qport),
+		fmt.Sprintf("-serverBrowserPort=%d", bport),
+	}
+	if strings.TrimSpace(extra) != "" {
+		args = append(args, strings.Fields(extra)...)
+	}
+	execStart := p.App + "/ArmaReforgerServer " + strings.Join(args, " ")
+
+	unit := `# Automatically generated by garrison
+[Unit]
+Description=Garrison - Arma Reforger (isolated, user)
+Wants=default.target
+After=default.target
+
+[Service]
+Type=simple
+WorkingDirectory=` + p.Base + `
+Environment=HOME=` + p.Cache + `
+Environment=PATH=/usr/games:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
+UMask=0077
+
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+LockPersonality=yes
+CapabilityBoundingSet=
+ReadWritePaths=` + p.Base + `
+ReadWritePaths=` + p.Cache + `
+ReadWritePaths=` + p.Logs + `
+
+ExecStartPre=/usr/bin/bash -lc 'mkdir -p "` + p.Base + `" "` + p.Profiles + `" "` + p.Cache + `" "` + p.Logs + `" && ${GARRISON_STEAMCMD_BIN:-steamcmd} +force_install_dir ` + p.App + ` +login anonymous +app_update ` + appID + ` +quit'
+ExecStart=` + execStart + `
+Restart=on-failure
+
+[Install]
+WantedBy=default.target
+`
+	return unit
+}
+
+func runUserCommand(name string, args ...string) error {
+	c := exec.Command(name, args...)
+	c.Stdout = os.Stdout
+	c.Stderr = os.Stderr
+	return c.Run()
+}
