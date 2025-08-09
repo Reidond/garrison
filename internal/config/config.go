@@ -86,6 +86,29 @@ func SetIsolation(serverKey string, mode IsolationMode) error {
 	return Save(cfg)
 }
 
+// DeleteServer removes the server entry; removes the config file if it becomes empty.
+func DeleteServer(serverKey string) error {
+	cfg, err := Load()
+	if err != nil {
+		return err
+	}
+	if cfg.Servers != nil {
+		delete(cfg.Servers, serverKey)
+	}
+	// If empty, delete file
+	if len(cfg.Servers) == 0 {
+		p, err := configPath()
+		if err != nil {
+			return err
+		}
+		if err := os.Remove(p); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+		return nil
+	}
+	return Save(cfg)
+}
+
 func configPath() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {

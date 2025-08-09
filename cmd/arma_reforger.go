@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
 
@@ -23,6 +24,7 @@ func init() {
 	armaReforgerCmd.AddCommand(startCmd)
 	armaReforgerCmd.AddCommand(stopCmd)
 	armaReforgerCmd.AddCommand(statusCmd)
+	armaReforgerCmd.AddCommand(deleteCmd)
 
 	startCmd.Flags().StringP("install-dir", "d", "./servers/arma-reforger", "Install directory for server files")
 	startCmd.Flags().String("config", "./servers/arma-reforger/profiles/config.json", "Path to server config.json")
@@ -42,6 +44,38 @@ func init() {
 	installCmd.Flags().String("isolation", "none", "Process/files isolation: none|systemd")
 	updateCmd.Flags().StringP("install-dir", "d", "./servers/arma-reforger", "Install directory for server files")
 	updateCmd.Flags().String("isolation", "none", "Process/files isolation: none|systemd")
+}
+
+var deleteCmd = &cobra.Command{
+	Use:   "delete",
+	Short: "Delete Arma Reforger server files and systemd user unit",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		// Determine isolation mode
+		isolation, _ := cmd.Flags().GetString("isolation")
+		if isolation == "" {
+			if mode, err := cfgpkg.GetIsolation("arma-reforger"); err == nil && mode != "" {
+				isolation = string(mode)
+			}
+		}
+		// Remove files based on mode
+		// Direct mode: remove install dir provided by flag
+		dir, _ := cmd.Flags().GetString("install-dir")
+		if isolation == "systemd" {
+			// Stop unit if running, remove unit and user data dirs
+			_ = sysd.Stop()
+			if err := sysd.DeleteAll(); err != nil {
+				return err
+			}
+		} else {
+			if dir != "" {
+				_ = os.RemoveAll(dir)
+			}
+		}
+		// Clear saved config entry
+		_ = cfgpkg.DeleteServer("arma-reforger")
+		fmt.Println("Deleted Arma Reforger server artifacts")
+		return nil
+	},
 }
 
 var armaReforgerCmd = &cobra.Command{

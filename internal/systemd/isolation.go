@@ -210,3 +210,22 @@ func runUserCommand(name string, args ...string) error {
 	c.Stderr = os.Stderr
 	return c.Run()
 }
+
+// DeleteAll stops and removes the user unit and deletes all user data/cache/logs for this server.
+func DeleteAll() error {
+	// Best-effort stop and disable unit
+	_ = runUserCommand("systemctl", "--user", "stop", ServiceName)
+	_ = runUserCommand("systemctl", "--user", "disable", ServiceName)
+	p, err := computePaths()
+	if err != nil {
+		return err
+	}
+	// Remove unit file
+	_ = os.Remove(p.Unit)
+	_ = runUserCommand("systemctl", "--user", "daemon-reload")
+	// Remove data dirs
+	_ = os.RemoveAll(p.Base)
+	_ = os.RemoveAll(p.Cache)
+	_ = os.RemoveAll(p.Logs)
+	return nil
+}
