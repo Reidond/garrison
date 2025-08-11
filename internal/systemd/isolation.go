@@ -9,11 +9,8 @@ import (
 	"strings"
 )
 
-const (
-	ServiceName = "garrison-arma-reforger.service"
-)
-
-type paths struct {
+// Paths describes per-server directories used by the systemd user service.
+type Paths struct {
 	Base     string
 	App      string
 	Profiles string
@@ -24,26 +21,30 @@ type paths struct {
 	Unit     string
 }
 
-func computePaths() (paths, error) {
+// GetPaths returns resolved XDG-based paths for the given server key.
+func GetPaths(serverKey string) (Paths, error) { return computePaths(serverKey) }
+
+func computePaths(serverKey string) (Paths, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return paths{}, err
+		return Paths{}, err
 	}
 	dataHome := firstNonEmpty(os.Getenv("XDG_DATA_HOME"), filepath.Join(home, ".local", "share"))
 	cacheHome := firstNonEmpty(os.Getenv("XDG_CACHE_HOME"), filepath.Join(home, ".cache"))
 	stateHome := firstNonEmpty(os.Getenv("XDG_STATE_HOME"), filepath.Join(home, ".local", "state"))
 	configHome := firstNonEmpty(os.Getenv("XDG_CONFIG_HOME"), filepath.Join(home, ".config"))
 
-	base := filepath.Join(dataHome, "garrison", "arma-reforger")
-	p := paths{
+	base := filepath.Join(dataHome, "garrison", serverKey)
+	unitName := serviceName(serverKey)
+	p := Paths{
 		Base:     base,
 		App:      filepath.Join(base, "app"),
 		Profiles: filepath.Join(base, "profiles"),
 		Config:   filepath.Join(base, "profiles", "config.json"),
-		Logs:     filepath.Join(stateHome, "garrison", "arma-reforger"),
+		Logs:     filepath.Join(stateHome, "garrison", serverKey),
 		Cache:    filepath.Join(cacheHome, "garrison", "steamcmd"),
 		UnitDir:  filepath.Join(configHome, "systemd", "user"),
-		Unit:     filepath.Join(configHome, "systemd", "user", ServiceName),
+		Unit:     filepath.Join(configHome, "systemd", "user", unitName),
 	}
 	return p, nil
 }
@@ -57,8 +58,8 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
-func RunSteamcmdTransient(appID string, validate bool) error {
-	p, err := computePaths()
+func RunSteamcmdTransient(serverKey, appID string, validate bool) error {
+	p, err := computePaths(serverKey)
 	if err != nil {
 		return err
 	}
@@ -67,7 +68,7 @@ func RunSteamcmdTransient(appID string, validate bool) error {
 		validateFlag = " validate"
 	}
 	args := []string{
-		"systemd-run", "--user", "--collect", "--wait", "--unit=garrison-scmd-arma-reforger",
+		"systemd-run", "--user", "--collect", "--wait", "--unit=garrison-scmd-" + serverKey,
 		"-p", "WorkingDirectory=" + p.Base,
 		"-p", "UMask=0077",
 		"-p", "NoNewPrivileges=yes",
@@ -92,15 +93,15 @@ func RunSteamcmdTransient(appID string, validate bool) error {
 	return runUserCommand(args[0], args[1:]...)
 }
 
-func InstallAndStartUnit(appID string, port, qport, bport int, extra string) error {
-	p, err := computePaths()
+func InstallAndStartUnit(serverKey string, execStartPre []string, execStart string) error {
+	p, err := computePaths(serverKey)
 	if err != nil {
 		return err
 	}
 	if err := os.MkdirAll(p.UnitDir, 0o755); err != nil {
 		return err
 	}
-	unitContent := buildUnit(appID, port, qport, bport, extra, p)
+	unitContent := buildUnit(execStartPre, execStart, p)
 	tmpFile, err := ioutil.TempFile("", "garrison-arma-reforger-*.service")
 	if err != nil {
 		return err
@@ -119,24 +120,27 @@ func InstallAndStartUnit(appID string, port, qport, bport int, extra string) err
 	if err := runUserCommand("systemctl", "--user", "daemon-reload"); err != nil {
 		return err
 	}
-	_ = runUserCommand("systemctl", "--user", "enable", ServiceName)
-	if err := runUserCommand("systemctl", "--user", "start", ServiceName); err != nil {
+	unit := serviceName(serverKey)
+	_ = runUserCommand("systemctl", "--user", "enable", unit)
+	if err := runUserCommand("systemctl", "--user", "start", unit); err != nil {
 		return err
 	}
-	fmt.Printf("Started via systemd --user: %s\n", ServiceName)
+	fmt.Printf("Started via systemd --user: %s\n", unit)
 	return nil
 }
 
-func Stop() error {
-	if err := runUserCommand("systemctl", "--user", "stop", ServiceName); err != nil {
+func Stop(serverKey string) error {
+	unit := serviceName(serverKey)
+	if err := runUserCommand("systemctl", "--user", "stop", unit); err != nil {
 		return err
 	}
 	fmt.Println("Arma Reforger server stopped (systemd --user)")
 	return nil
 }
 
-func Status() error {
-	cmd := exec.Command("systemctl", "--user", "is-active", ServiceName)
+func Status(serverKey string) error {
+	unit := serviceName(serverKey)
+	cmd := exec.Command("systemctl", "--user", "is-active", unit)
 	out, err := cmd.CombinedOutput()
 	state := strings.TrimSpace(string(out))
 	if err == nil && state == "active" {
@@ -147,27 +151,20 @@ func Status() error {
 		fmt.Println(state)
 		return nil
 	}
-	_ = runUserCommand("systemctl", "--user", "status", "--no-pager", ServiceName)
+	_ = runUserCommand("systemctl", "--user", "status", "--no-pager", unit)
 	return nil
 }
 
-func buildUnit(appID string, port, qport, bport int, extra string, p paths) string {
-	args := []string{
-		fmt.Sprintf("-config=%s", p.Config),
-		fmt.Sprintf("-profile=%s", p.Profiles),
-		fmt.Sprintf("-port=%d", port),
-		fmt.Sprintf("-queryPort=%d", qport),
-		fmt.Sprintf("-steamQueryPort=%d", qport),
-		fmt.Sprintf("-serverBrowserPort=%d", bport),
+func buildUnit(execStartPre []string, execStart string, p Paths) string {
+	pre := ""
+	if len(execStartPre) > 0 {
+		for _, line := range execStartPre {
+			pre += "ExecStartPre=/usr/bin/bash -lc '" + line + "'\n"
+		}
 	}
-	if strings.TrimSpace(extra) != "" {
-		args = append(args, strings.Fields(extra)...)
-	}
-	execStart := p.App + "/ArmaReforgerServer " + strings.Join(args, " ")
-
 	unit := `# Automatically generated by garrison
 [Unit]
-Description=Garrison - Arma Reforger (isolated, user)
+Description=Garrison - Game Server (isolated, user)
 Wants=default.target
 After=default.target
 
@@ -194,8 +191,7 @@ ReadWritePaths=` + p.Base + `
 ReadWritePaths=` + p.Cache + `
 ReadWritePaths=` + p.Logs + `
 
-ExecStartPre=/usr/bin/bash -lc 'mkdir -p "` + p.Base + `" "` + p.Profiles + `" "` + p.Cache + `" "` + p.Logs + `" && ${GARRISON_STEAMCMD_BIN:-steamcmd} +force_install_dir ` + p.App + ` +login anonymous +app_update ` + appID + ` +quit'
-ExecStart=` + execStart + `
+` + pre + `ExecStart=` + execStart + `
 Restart=on-failure
 
 [Install]
@@ -212,11 +208,12 @@ func runUserCommand(name string, args ...string) error {
 }
 
 // DeleteAll stops and removes the user unit and deletes all user data/cache/logs for this server.
-func DeleteAll() error {
+func DeleteAll(serverKey string) error {
 	// Best-effort stop and disable unit
-	_ = runUserCommand("systemctl", "--user", "stop", ServiceName)
-	_ = runUserCommand("systemctl", "--user", "disable", ServiceName)
-	p, err := computePaths()
+	unit := serviceName(serverKey)
+	_ = runUserCommand("systemctl", "--user", "stop", unit)
+	_ = runUserCommand("systemctl", "--user", "disable", unit)
+	p, err := computePaths(serverKey)
 	if err != nil {
 		return err
 	}
@@ -229,3 +226,5 @@ func DeleteAll() error {
 	_ = os.RemoveAll(p.Logs)
 	return nil
 }
+
+func serviceName(serverKey string) string { return "garrison-" + serverKey + ".service" }

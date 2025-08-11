@@ -9,10 +9,16 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	scmd "github.com/example/garrison/internal/steamcmd"
+	sysd "github.com/example/garrison/internal/systemd"
 )
 
 // AppID is the Steam App ID for Arma Reforger dedicated server.
 const AppID = "1874900"
+
+// ServerKey is the canonical key used across config and systemd helpers.
+const ServerKey = "arma-reforger"
 
 // BinaryPath returns the expected absolute path to the server binary.
 func BinaryPath(installDir string) string {
@@ -113,3 +119,48 @@ func readPid(pidFile string) (int, error) {
 	_, err = fmt.Sscanf(string(b), "%d", &pid)
 	return pid, err
 }
+
+// InstallOrUpdateDirect installs or updates the server into installDir using steamcmd directly.
+// When validate is true, the steamcmd run includes the validate flag.
+func InstallOrUpdateDirect(installDir string, validate bool) error {
+	return scmd.Run(installDir, AppID, validate)
+}
+
+// InstallOrUpdateSystemd installs or updates the server using a transient systemd-run sandbox.
+func InstallOrUpdateSystemd(validate bool) error {
+	return sysd.RunSteamcmdTransient(ServerKey, AppID, validate)
+}
+
+// StartSystemd prepares the unit and starts the server under the systemd --user sandbox.
+func StartSystemd(port, queryPort, browserPort int, extra string) error {
+	p, err := sysd.GetPaths(ServerKey)
+	if err != nil {
+		return err
+	}
+	pre := []string{
+		fmt.Sprintf("mkdir -p '%s' '%s' '%s' '%s'", p.Base, p.Profiles, p.Cache, p.Logs),
+		fmt.Sprintf("${GARRISON_STEAMCMD_BIN:-steamcmd} +force_install_dir %s +login anonymous +app_update %s +quit", p.App, AppID),
+	}
+	args := []string{
+		fmt.Sprintf("-config=%s", p.Config),
+		fmt.Sprintf("-profile=%s", p.Profiles),
+		fmt.Sprintf("-port=%d", port),
+		fmt.Sprintf("-queryPort=%d", queryPort),
+		fmt.Sprintf("-steamQueryPort=%d", queryPort),
+		fmt.Sprintf("-serverBrowserPort=%d", browserPort),
+	}
+	if strings.TrimSpace(extra) != "" {
+		args = append(args, strings.Fields(extra)...)
+	}
+	execStart := p.App + "/ArmaReforgerServer " + strings.Join(args, " ")
+	return sysd.InstallAndStartUnit(ServerKey, pre, execStart)
+}
+
+// StopSystemd stops the user service.
+func StopSystemd() error { return sysd.Stop(ServerKey) }
+
+// StatusSystemd prints the status of the user service to stdout.
+func StatusSystemd() error { return sysd.Status(ServerKey) }
+
+// DeleteAllSystemd stops and deletes all systemd user data for this server.
+func DeleteAllSystemd() error { return sysd.DeleteAll(ServerKey) }
