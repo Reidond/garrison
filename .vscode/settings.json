@@ -12,4 +12,7 @@
         "dlv": "/home/z/.local/share/mise/shims/dlv",
         "gopls": "/home/z/.local/share/mise/shims/gopls"
     },
+    "gopls": {
+        "buildFlags": ["-tags=integration"]
+    }
 }

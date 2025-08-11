@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
+
+	execu "github.com/example/garrison/internal/executil"
 )
 
 // Paths describes per-server directories used by the systemd user service.
@@ -90,7 +91,7 @@ func RunSteamcmdTransient(serverKey, appID string, validate bool) error {
 		fmt.Sprintf("mkdir -p '%s' '%s' '%s' '%s'; export HOME=%s PATH=$PATH; ${GARRISON_STEAMCMD_BIN:-steamcmd} +force_install_dir %s +login anonymous +app_update %s%s +quit",
 			p.Base, p.Profiles, p.Cache, p.Logs, p.Cache, p.App, appID, validateFlag),
 	}
-	return runUserCommand(args[0], args[1:]...)
+	return execu.Default.Run(args[0], args[1:]...)
 }
 
 func InstallAndStartUnit(serverKey string, execStartPre []string, execStart string) error {
@@ -117,12 +118,12 @@ func InstallAndStartUnit(serverKey string, execStartPre []string, execStart stri
 		_ = os.Remove(tmpPath)
 		return fmt.Errorf("install unit: %w", err)
 	}
-	if err := runUserCommand("systemctl", "--user", "daemon-reload"); err != nil {
+	if err := execu.Default.Run("systemctl", "--user", "daemon-reload"); err != nil {
 		return err
 	}
 	unit := serviceName(serverKey)
-	_ = runUserCommand("systemctl", "--user", "enable", unit)
-	if err := runUserCommand("systemctl", "--user", "start", unit); err != nil {
+	_ = execu.Default.Run("systemctl", "--user", "enable", unit)
+	if err := execu.Default.Run("systemctl", "--user", "start", unit); err != nil {
 		return err
 	}
 	fmt.Printf("Started via systemd --user: %s\n", unit)
@@ -131,7 +132,7 @@ func InstallAndStartUnit(serverKey string, execStartPre []string, execStart stri
 
 func Stop(serverKey string) error {
 	unit := serviceName(serverKey)
-	if err := runUserCommand("systemctl", "--user", "stop", unit); err != nil {
+	if err := execu.Default.Run("systemctl", "--user", "stop", unit); err != nil {
 		return err
 	}
 	fmt.Println("Arma Reforger server stopped (systemd --user)")
@@ -140,9 +141,8 @@ func Stop(serverKey string) error {
 
 func Status(serverKey string) error {
 	unit := serviceName(serverKey)
-	cmd := exec.Command("systemctl", "--user", "is-active", unit)
-	out, err := cmd.CombinedOutput()
-	state := strings.TrimSpace(string(out))
+	out, err := execu.Default.CombinedOutput("systemctl", "--user", "is-active", unit)
+	state := strings.TrimSpace(out)
 	if err == nil && state == "active" {
 		fmt.Println("running (systemd --user)")
 		return nil
@@ -151,7 +151,7 @@ func Status(serverKey string) error {
 		fmt.Println(state)
 		return nil
 	}
-	_ = runUserCommand("systemctl", "--user", "status", "--no-pager", unit)
+	_ = execu.Default.Run("systemctl", "--user", "status", "--no-pager", unit)
 	return nil
 }
 
@@ -200,26 +200,21 @@ WantedBy=default.target
 	return unit
 }
 
-func runUserCommand(name string, args ...string) error {
-	c := exec.Command(name, args...)
-	c.Stdout = os.Stdout
-	c.Stderr = os.Stderr
-	return c.Run()
-}
+//
 
 // DeleteAll stops and removes the user unit and deletes all user data/cache/logs for this server.
 func DeleteAll(serverKey string) error {
 	// Best-effort stop and disable unit
 	unit := serviceName(serverKey)
-	_ = runUserCommand("systemctl", "--user", "stop", unit)
-	_ = runUserCommand("systemctl", "--user", "disable", unit)
+	_ = execu.Default.Run("systemctl", "--user", "stop", unit)
+	_ = execu.Default.Run("systemctl", "--user", "disable", unit)
 	p, err := computePaths(serverKey)
 	if err != nil {
 		return err
 	}
 	// Remove unit file
 	_ = os.Remove(p.Unit)
-	_ = runUserCommand("systemctl", "--user", "daemon-reload")
+	_ = execu.Default.Run("systemctl", "--user", "daemon-reload")
 	// Remove data dirs
 	_ = os.RemoveAll(p.Base)
 	_ = os.RemoveAll(p.Cache)

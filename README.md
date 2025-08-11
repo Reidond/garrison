@@ -62,3 +62,9 @@ Notes:
   - State: `/var/lib/garrison/arma-reforger` (app, profiles, config)
   - Cache: `/var/cache/garrison/steamcmd`
   - Logs: `/var/log/garrison/arma-reforger`
+
+## Testing
+
+Run all tests:
+
+- `go test -v ./...`

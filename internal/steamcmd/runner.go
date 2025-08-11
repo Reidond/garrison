@@ -5,8 +5,9 @@ package steamcmd
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"strings"
+
+	execu "github.com/example/garrison/internal/executil"
 )
 
 // SteamCmdBinDefault is the default binary name searched on PATH.
@@ -22,10 +23,7 @@ func Run(installDir string, appID string, validate bool) error {
 		validateFlag = " validate"
 	}
 	cmdline := fmt.Sprintf("%s +force_install_dir %s +login anonymous +app_update %s%s +quit", steamcmdBin(), shellQuote(installDir), appID, validateFlag)
-	c := exec.Command("bash", "-lc", cmdline)
-	c.Stdout = os.Stdout
-	c.Stderr = os.Stderr
-	return c.Run()
+	return execu.Default.Run("bash", "-lc", cmdline)
 }
 
 func steamcmdBin() string {
