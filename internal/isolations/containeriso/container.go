@@ -62,18 +62,39 @@ func InstallOrUpdate(serverKey, appID, installDir string, validate bool) error {
 // and a bind-mounted install/profile directory. The command should be an absolute path inside
 // the container (e.g., /data/app/ArmaReforgerServer) with its flags.
 func StartGeneric(serverKey, installDir string, containerCmd []string, udpPorts [][2]int) error {
+	absInstall, _ := filepath.Abs(installDir)
 	image := firstNonEmpty(os.Getenv("GARRISON_SERVER_IMAGE"), "debian:bookworm-slim")
 	name := "garrison-" + serverKey
-	// Ports are UDP; map host:container
-	runArgs := []string{
-		runtimeBin(), "run", "-d", "--name", name, "--restart", "unless-stopped",
-		"-v", installDir + ":/data",
-		image,
+	// If a container already exists, reuse it: start if stopped, no-op if running.
+	if out, err := execu.Default.CombinedOutput(runtimeBin(), "inspect", "-f", "{{.State.Running}}", name); err == nil {
+		state := strings.TrimSpace(out)
+		if state == "true" {
+			return nil
+		}
+		if state == "false" {
+			if err := execu.Default.Run(runtimeBin(), "start", name); err == nil {
+				return nil
+			}
+			// start failed; remove and recreate fresh
+			_ = execu.Default.Run(runtimeBin(), "rm", "-f", name)
+		}
+		// Unknown state: fall through to create a fresh container
+	} else {
+		// inspect failed: ensure no stale blocking name (best-effort)
+		_ = execu.Default.Run(runtimeBin(), "rm", "-f", name)
 	}
+	// Ports are UDP; map host:container
+	runArgs := []string{runtimeBin(), "run", "-d", "--name", name, "--restart", "unless-stopped", "-v", absInstall + ":/data"}
 	for _, p := range udpPorts {
 		runArgs = append(runArgs, "-p", fmt.Sprintf("%d:%d/udp", p[0], p[1]))
 	}
+	// image must come after all options
+	runArgs = append(runArgs, image)
+	// then the command and its args
 	runArgs = append(runArgs, containerCmd...)
+	if strings.TrimSpace(os.Getenv("GARRISON_DEBUG")) != "" {
+		fmt.Println("[garrison]", strings.Join(runArgs, " "))
+	}
 	return execu.Default.Run(runArgs[0], runArgs[1:]...)
 }
 
