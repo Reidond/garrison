@@ -24,7 +24,9 @@ var installCmd = &cobra.Command{
 		case "", "none":
 			mode = cfgpkg.IsolationNone
 		case "systemd":
-			mode = cfgpkg.IsolationSystemd
+			return fmt.Errorf("systemd isolation removed; use --isolation=container or none")
+		case "container":
+			mode = cfgpkg.IsolationContainer
 		default:
 			return fmt.Errorf("unknown --isolation=%s", isoFlag)
 		}

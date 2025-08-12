@@ -3,10 +3,13 @@ package servers
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
+	"strings"
 
 	arma "github.com/example/garrison/internal/arma"
 	cfgpkg "github.com/example/garrison/internal/config"
+	"github.com/example/garrison/internal/isolations/containeriso"
 )
 
 // StartOptions captures cross-game options required to start a server.
@@ -35,7 +38,9 @@ var registry = map[string]Implementation{
 		InstallOrUpdate: func(dir string, iso cfgpkg.IsolationMode, validate bool) error {
 			switch iso {
 			case cfgpkg.IsolationSystemd:
-				return arma.InstallOrUpdateSystemd(validate)
+				return fmt.Errorf("systemd isolation removed; use --isolation=container or none")
+			case cfgpkg.IsolationContainer:
+				return containeriso.InstallOrUpdate(arma.ServerKey, arma.AppID, dir, validate)
 			default:
 				return arma.InstallOrUpdateDirect(dir, validate)
 			}
@@ -43,7 +48,22 @@ var registry = map[string]Implementation{
 		Start: func(iso cfgpkg.IsolationMode, opts StartOptions) error {
 			switch iso {
 			case cfgpkg.IsolationSystemd:
-				return arma.StartSystemd(opts.Port, opts.QueryPort, opts.BrowserPort, opts.Extra)
+				return fmt.Errorf("systemd isolation removed; use --isolation=container or none")
+			case cfgpkg.IsolationContainer:
+				cmd := []string{
+					"/data/app/" + filepath.Base(arma.BinaryPath(opts.InstallDir)),
+					"-config=" + strings.ReplaceAll(opts.ConfigPath, opts.InstallDir, "/data"),
+					"-profile=" + strings.ReplaceAll(opts.ProfileDir, opts.InstallDir, "/data"),
+					fmt.Sprintf("-port=%d", opts.Port),
+					fmt.Sprintf("-queryPort=%d", opts.QueryPort),
+					fmt.Sprintf("-steamQueryPort=%d", opts.QueryPort),
+					fmt.Sprintf("-serverBrowserPort=%d", opts.BrowserPort),
+				}
+				if strings.TrimSpace(opts.Extra) != "" {
+					cmd = append(cmd, opts.Extra)
+				}
+				ports := [][2]int{{opts.Port, opts.Port}, {opts.QueryPort, opts.QueryPort}, {opts.BrowserPort, opts.BrowserPort}}
+				return containeriso.StartGeneric(arma.ServerKey, opts.InstallDir, cmd, ports)
 			default:
 				return arma.StartDirect(opts.InstallDir, opts.ConfigPath, opts.ProfileDir, opts.Port, opts.QueryPort, opts.BrowserPort, opts.Extra)
 			}
@@ -51,7 +71,9 @@ var registry = map[string]Implementation{
 		Stop: func(dir string, iso cfgpkg.IsolationMode) error {
 			switch iso {
 			case cfgpkg.IsolationSystemd:
-				return arma.StopSystemd()
+				return fmt.Errorf("systemd isolation removed; use --isolation=container or none")
+			case cfgpkg.IsolationContainer:
+				return containeriso.Stop(arma.ServerKey)
 			default:
 				return arma.StopDirect(dir)
 			}
@@ -59,7 +81,9 @@ var registry = map[string]Implementation{
 		Status: func(dir string, iso cfgpkg.IsolationMode) error {
 			switch iso {
 			case cfgpkg.IsolationSystemd:
-				return arma.StatusSystemd()
+				return fmt.Errorf("systemd isolation removed; use --isolation=container or none")
+			case cfgpkg.IsolationContainer:
+				return containeriso.Status(arma.ServerKey)
 			default:
 				s, err := arma.StatusDirect(dir)
 				if err != nil {
@@ -72,7 +96,9 @@ var registry = map[string]Implementation{
 		Delete: func(dir string, iso cfgpkg.IsolationMode) error {
 			switch iso {
 			case cfgpkg.IsolationSystemd:
-				return arma.DeleteAllSystemd()
+				return fmt.Errorf("systemd isolation removed; use --isolation=container or none")
+			case cfgpkg.IsolationContainer:
+				return containeriso.Delete(arma.ServerKey, dir)
 			default:
 				if dir == "" {
 					return fmt.Errorf("install-dir required to delete in non-systemd mode")

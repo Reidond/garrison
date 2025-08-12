@@ -11,7 +11,6 @@ import (
 	"time"
 
 	scmd "github.com/example/garrison/internal/steamcmd"
-	sysd "github.com/example/garrison/internal/systemd"
 )
 
 // AppID is the Steam App ID for Arma Reforger dedicated server.
@@ -127,40 +126,4 @@ func InstallOrUpdateDirect(installDir string, validate bool) error {
 }
 
 // InstallOrUpdateSystemd installs or updates the server using a transient systemd-run sandbox.
-func InstallOrUpdateSystemd(validate bool) error {
-	return sysd.RunSteamcmdTransient(ServerKey, AppID, validate)
-}
-
-// StartSystemd prepares the unit and starts the server under the systemd --user sandbox.
-func StartSystemd(port, queryPort, browserPort int, extra string) error {
-	p, err := sysd.GetPaths(ServerKey)
-	if err != nil {
-		return err
-	}
-	pre := []string{
-		fmt.Sprintf("mkdir -p '%s' '%s' '%s' '%s'", p.Base, p.Profiles, p.Cache, p.Logs),
-		fmt.Sprintf("${GARRISON_STEAMCMD_BIN:-steamcmd} +force_install_dir %s +login anonymous +app_update %s +quit", p.App, AppID),
-	}
-	args := []string{
-		fmt.Sprintf("-config=%s", p.Config),
-		fmt.Sprintf("-profile=%s", p.Profiles),
-		fmt.Sprintf("-port=%d", port),
-		fmt.Sprintf("-queryPort=%d", queryPort),
-		fmt.Sprintf("-steamQueryPort=%d", queryPort),
-		fmt.Sprintf("-serverBrowserPort=%d", browserPort),
-	}
-	if strings.TrimSpace(extra) != "" {
-		args = append(args, strings.Fields(extra)...)
-	}
-	execStart := p.App + "/ArmaReforgerServer " + strings.Join(args, " ")
-	return sysd.InstallAndStartUnit(ServerKey, pre, execStart)
-}
-
-// StopSystemd stops the user service.
-func StopSystemd() error { return sysd.Stop(ServerKey) }
-
-// StatusSystemd prints the status of the user service to stdout.
-func StatusSystemd() error { return sysd.Status(ServerKey) }
-
-// DeleteAllSystemd stops and deletes all systemd user data for this server.
-func DeleteAllSystemd() error { return sysd.DeleteAll(ServerKey) }
+// All systemd-based helpers were removed in favor of container-based isolation.

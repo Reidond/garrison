@@ -11,8 +11,9 @@ import (
 type IsolationMode string
 
 const (
-	IsolationNone    IsolationMode = "none"
-	IsolationSystemd IsolationMode = "systemd"
+	IsolationNone      IsolationMode = "none"
+	IsolationSystemd   IsolationMode = "systemd"
+	IsolationContainer IsolationMode = "container"
 )
 
 type ServerConfig struct {

@@ -1,5 +1,6 @@
 // Package steamcmd contains helpers to invoke SteamCMD for installing and
 // updating dedicated server binaries.
+// NOTE: no shell wrapping; path passed directly as argument to steamcmd
 package steamcmd
 
 import (
@@ -18,12 +19,8 @@ func Run(installDir string, appID string, validate bool) error {
 	if err := os.MkdirAll(installDir, 0o755); err != nil {
 		return err
 	}
-	validateFlag := ""
-	if validate {
-		validateFlag = " validate"
-	}
-	cmdline := fmt.Sprintf("%s +force_install_dir %s +login anonymous +app_update %s%s +quit", steamcmdBin(), shellQuote(installDir), appID, validateFlag)
-	return execu.Default.Run("bash", "-lc", cmdline)
+	args := BuildArgs(installDir, appID, validate)
+	return execu.Default.Run(steamcmdBin(), args...)
 }
 
 func steamcmdBin() string {
@@ -33,9 +30,31 @@ func steamcmdBin() string {
 	return SteamCmdBinDefault
 }
 
-func shellQuote(p string) string {
-	if strings.ContainsAny(p, " \t\n\"") {
-		return fmt.Sprintf("\"%s\"", strings.ReplaceAll(p, "\"", "\\\""))
+// BuildArgs returns the recommended argument list for a non-interactive steamcmd run.
+func BuildArgs(installDir string, appID string, validate bool) []string {
+	args := []string{
+		"+force_install_dir", installDir,
+		"+login", "anonymous",
+		"+app_update", appID,
 	}
-	return p
+	if validate {
+		args = append(args, "+validate")
+	}
+	args = append(args, "+quit")
+	return args
+}
+
+// BuildRunscriptContent returns a non-interactive steamcmd runscript.
+func BuildRunscriptContent(appID string, validate bool, containerInstallDir string) string {
+	validateSuffix := ""
+	if validate {
+		validateSuffix = " validate"
+	}
+	// containerInstallDir is the path inside steamcmd context (e.g., /data/app)
+	return fmt.Sprintf(`@ShutdownOnFailedCommand 1
+@NoPromptForPassword 1
+force_install_dir %s
+login anonymous
+app_update %s%s
+quit`, containerInstallDir, appID, validateSuffix)
 }
