@@ -4,3 +4,7 @@ ports:
   - 27015/udp
 executable: run.sh
 working_dir: .
+command_template: "./run.sh {{args}}"
+env:
+  LD_LIBRARY_PATH: ".:${LD_LIBRARY_PATH}"
+log_file: logs/server.log

@@ -85,12 +85,9 @@ func (c *StartCmd) Run(root *Root) error {
 	// set working dir
 	m.Metadata.InstallDir = workDir
 	// apply env
-	if len(env) > 0 {
-		os.Environ() /* no-op just to avoid linter */
-		os.Setenv("GARRISON_DUMMY", "0")
-		os.Unsetenv("GARRISON_DUMMY")
-	}
-	if err := m.Start(exe, args...); err != nil {
+	var opts server.ProcessOptions
+	if len(env) > 0 { opts.Env = server.InheritEnv(env) }
+	if err := m.StartWithOptions(opts, exe, args...); err != nil {
 		return fmt.Errorf("failed to start: %w", err)
 	}
 	slog.Info("started server", "name", c.Name)

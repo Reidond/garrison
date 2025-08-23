@@ -53,12 +53,18 @@ func (m *Manager) removePID() { p, _ := m.pidFile(); _ = os.Remove(p) }
 
 // Start launches the server using provided executable and args; here we assume executable lives in InstallDir
 func (m *Manager) Start(executable string, args ...string) error {
+	return m.StartWithOptions(ProcessOptions{}, executable, args...)
+}
+
+func (m *Manager) StartWithOptions(opts ProcessOptions, executable string, args ...string) error {
 	if executable == "" {
 		return errors.New("executable path required")
 	}
 	cmd := exec.Command(executable, args...)
 	cmd.Dir = m.Metadata.InstallDir
-	// Env is inherited from process by default; allow caller to set via os.Environ before call.
+	if opts.Env != nil {
+		cmd.Env = opts.Env
+	}
 	if err := cmd.Start(); err != nil {
 		return err
 	}
