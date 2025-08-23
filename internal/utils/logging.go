@@ -9,12 +9,8 @@ import (
 // SetupLogger configures the global slog logger with readable time, source, and level.
 func SetupLogger(verbose bool) {
 	level := slog.LevelInfo
-	if verbose {
-		level = slog.LevelDebug
-	}
-	handler := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
-		Level:     level,
-		AddSource: true,
+	opts := &slog.HandlerOptions{
+		Level: level,
 		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
 			if a.Key == slog.TimeKey && a.Value.Kind() == slog.KindTime {
 				t := a.Value.Time()
@@ -22,7 +18,13 @@ func SetupLogger(verbose bool) {
 			}
 			return a
 		},
-	})
+	}
+	if verbose {
+		level = slog.LevelDebug
+		opts.AddSource = true
+	}
+	handler := slog.NewTextHandler(os.Stderr, opts)
+
 	slog.SetDefault(slog.New(handler))
 }
 
