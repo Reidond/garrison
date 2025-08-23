@@ -1,19 +1,10 @@
 package reforger
 
 import (
-	"bufio"
-	"bytes"
 	"context"
-	"errors"
 	"fmt"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"regexp"
-	"sort"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/Reidond/garrison/internal/games"
 )
@@ -28,100 +19,6 @@ func (Provider) Name() string { return "Arma Reforger" }
 
 func init() {
 	games.Register(Provider{})
-}
-
-func (Provider) ListScenarios(ctx context.Context, opts games.ScenarioOptions) ([]string, string, error) {
-	// Resolve working dir and binary
-	workDir := ""
-	if opts.InstallDir != "" {
-		workDir = opts.InstallDir
-	}
-	bin := opts.Binary
-	if bin == "" {
-		bin = "ArmaReforgerServer"
-	}
-	if workDir != "" && !filepath.IsAbs(bin) {
-		candidate := filepath.Join(workDir, bin)
-		if _, err := os.Stat(candidate); err == nil {
-			bin = candidate
-		} else {
-			if lp, lerr := exec.LookPath(bin); lerr == nil {
-				bin = lp
-			} else if errors.Is(err, os.ErrNotExist) {
-				return nil, "", fmt.Errorf("binary not found: %s (also not in PATH)", candidate)
-			} else {
-				return nil, "", fmt.Errorf("cannot access binary: %w", err)
-			}
-		}
-	} else {
-		if _, err := os.Stat(bin); err != nil {
-			if lp, lerr := exec.LookPath(bin); lerr == nil {
-				bin = lp
-			} else if errors.Is(err, os.ErrNotExist) {
-				return nil, "", fmt.Errorf("binary not found: %s (also not in PATH)", bin)
-			} else {
-				return nil, "", fmt.Errorf("cannot access binary: %w", err)
-			}
-		}
-	}
-
-	// Prepare context timeout
-	timeout := opts.Timeout
-	if timeout <= 0 {
-		timeout = 2 * time.Minute
-	}
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
-	cmd := exec.CommandContext(ctx, bin, "-listScenarios")
-	if workDir != "" {
-		cmd.Dir = workDir
-	}
-	var combined bytes.Buffer
-	cmd.Stdout = &combined
-	cmd.Stderr = &combined
-	if err := cmd.Run(); err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
-			return nil, combined.String(), fmt.Errorf("timed out after %s", timeout)
-		}
-		// Proceed with parsing whatever we got
-	}
-	out := combined.String()
-	if opts.Raw {
-		return nil, out, nil
-	}
-
-	// Parse for .conf occurrences
-	re := regexp.MustCompile(`(?i)([A-Za-z0-9_./\\-]+\\.conf)`) // escape for Go string
-	matches := re.FindAllStringSubmatch(out, -1)
-	set := map[string]struct{}{}
-	for _, m := range matches {
-		if len(m) > 1 {
-			set[m[1]] = struct{}{}
-		} else if len(m) > 0 {
-			set[m[0]] = struct{}{}
-		}
-	}
-	if len(set) == 0 {
-		// Fallback: return any lines mentioning scenario
-		lines := []string{}
-		sc := bufio.NewScanner(strings.NewReader(out))
-		for sc.Scan() {
-			line := strings.TrimSpace(sc.Text())
-			if strings.Contains(strings.ToLower(line), "scenario") {
-				if line != "" {
-					lines = append(lines, line)
-				}
-			}
-		}
-		return lines, out, nil
-	}
-	list := make([]string, 0, len(set))
-	for k := range set {
-		list = append(list, k)
-	}
-	sort.Strings(list)
-	return list, out, nil
 }
 
 func (Provider) TemplateYAML() []byte {

@@ -20,8 +20,6 @@ type Provider interface {
 	ID() string
 	// Name is a human-friendly name.
 	Name() string
-	// ListScenarios returns parsed scenario identifiers and the raw output captured.
-	ListScenarios(ctx context.Context, opts ScenarioOptions) (scenarios []string, raw string, err error)
 	// TemplateYAML returns a ready-made YAML game config template.
 	TemplateYAML() []byte
 	// InitConfig writes a native game config (e.g., JSON) to the given path with provided options.

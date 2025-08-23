@@ -5,63 +5,17 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/Reidond/garrison/internal/games"
 )
 
 type GameCmd struct {
-	ListScenarios GameListScenariosCmd `cmd:"list-scenarios" help:"List available scenarios/maps for a game"`
-	Template      GameTemplateCmd      `cmd:"template" help:"Print a ready-made YAML game configuration template"`
-	InitConfig    GameInitConfigCmd    `cmd:"init-config" help:"Create a native game config file via the provider (if supported)"`
+	Template   GameTemplateCmd   `cmd:"template" help:"Print a ready-made YAML game configuration template"`
+	InitConfig GameInitConfigCmd `cmd:"init-config" help:"Create a native game config file via the provider (if supported)"`
 }
 
 type GameCommon struct {
 	Game string `help:"Game id (e.g., reforger)" default:"reforger"`
-}
-
-type GameListScenariosCmd struct {
-	GameCommon
-	Binary     string        `help:"Path or name of the server binary" default:""`
-	InstallDir string        `help:"Install/working directory" type:"path"`
-	Timeout    time.Duration `help:"Timeout for the query" default:"2m"`
-	Raw        bool          `help:"Print raw output without parsing" default:"false"`
-}
-
-func (c *GameListScenariosCmd) Run(root *Root) error {
-	p, err := games.Get(c.Game)
-	if err != nil {
-		return err
-	}
-	// Expand InstallDir to absolute for consistency in providers that might not expand
-	if c.InstallDir != "" {
-		if abs, err := filepath.Abs(c.InstallDir); err == nil {
-			c.InstallDir = abs
-		}
-	}
-	scenarios, raw, err := p.ListScenarios(root.Context(), games.ScenarioOptions{
-		Binary:     c.Binary,
-		InstallDir: c.InstallDir,
-		Timeout:    c.Timeout,
-		Raw:        c.Raw,
-	})
-	if err != nil {
-		return err
-	}
-	if c.Raw {
-		fmt.Print(raw)
-		return nil
-	}
-	if len(scenarios) == 0 {
-		// No parsed scenarios but maybe raw had info; print raw.
-		fmt.Print(raw)
-		return nil
-	}
-	fmt.Println("Scenarios:")
-	for _, s := range scenarios {
-		fmt.Printf("  %s\n", s)
-	}
-	return nil
 }
 
 type GameTemplateCmd struct {
