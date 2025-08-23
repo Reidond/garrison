@@ -71,8 +71,16 @@ func (c *Client) exec(ctx context.Context, args ...string) error {
 		var fail bool
 		rdr := bufio.NewReader(strings.NewReader(out))
 		for {
-			line, err := rdr.ReadString('\n')
+			line, rerr := rdr.ReadString('\n')
 			if len(line) > 0 {
+				// emit to OnOutput if configured
+				if cb := c.cfg.OnOutput; cb != nil {
+					if p := c.cfg.OutputPrefix; p != "" {
+						cb(p + strings.TrimRight(line, "\n"))
+					} else {
+						cb(strings.TrimRight(line, "\n"))
+					}
+				}
 				switch classifyLine(line) {
 				case outcomeSuccess:
 					ok = true
@@ -80,7 +88,7 @@ func (c *Client) exec(ctx context.Context, args ...string) error {
 					fail = true
 				}
 			}
-			if err != nil {
+			if rerr != nil {
 				break
 			}
 		}

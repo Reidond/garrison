@@ -31,7 +31,13 @@ func TestSteamcmdPingLogin(t *testing.T) {
 		_ = r.Terminate(context.Background())
 	}()
 
-	c := NewWithRunner(Config{BinaryPath: "/home/steam/steamcmd/steamcmd.sh", Retries: 1, Backoff: 500}, r)
+	c := NewWithRunner(Config{
+		BinaryPath:   "/home/steam/steamcmd/steamcmd.sh",
+		Retries:      1,
+		Backoff:      500,
+		OnOutput:     func(s string) { t.Logf("[steamcmd] %s", s) },
+		OutputPrefix: "",
+	}, r)
 	if err := c.PingLogin(ctx); err != nil {
 		// Fetch logs for easier diagnosis
 		logs, _ := r.container.Logs(ctx)

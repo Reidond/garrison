@@ -67,15 +67,16 @@ func (dl DirLogger) LogDirTree(root string, maxEntries int) {
 }
 
 func humanBytes(n int64) string {
-	const unit = 1024
-	if n < unit {
-		return fmt.Sprintf("%d B", n)
-	}
+	const unit = 1024.0
+	labels := []string{"B", "KB", "MB", "GB", "TB", "PB"}
 	d := float64(n)
-	u := []string{"KB", "MB", "GB", "TB", "PB"}
-	var i int
-	for i = 0; i < len(u)-1 && d >= unit; i++ {
+	idx := 0
+	for d >= unit && idx < len(labels)-1 {
 		d /= unit
+		idx++
 	}
-	return fmt.Sprintf("%.1f %s", d, u[i])
+	if idx == 0 {
+		return fmt.Sprintf("%d %s", n, labels[idx])
+	}
+	return fmt.Sprintf("%.1f %s", d, labels[idx])
 }

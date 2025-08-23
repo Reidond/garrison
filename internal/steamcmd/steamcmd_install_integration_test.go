@@ -58,7 +58,13 @@ func TestInstallUpdateApp(t *testing.T) {
 	}
 	defer func() { _ = r.Terminate(context.Background()) }()
 
-	c := NewWithRunner(Config{BinaryPath: bin, Retries: 2, Backoff: 1500}, r)
+	c := NewWithRunner(Config{
+		BinaryPath:   bin,
+		Retries:      2,
+		Backoff:      1500,
+		OnOutput:     func(s string) { t.Logf("[steamcmd] %s", s) },
+		OutputPrefix: "",
+	}, r)
 
 	// Install app
 	if err := c.InstallApp(ctx, appID, containerDir, false); err != nil {
