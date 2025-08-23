@@ -58,6 +58,7 @@ func (m *Manager) Start(executable string, args ...string) error {
 	}
 	cmd := exec.Command(executable, args...)
 	cmd.Dir = m.Metadata.InstallDir
+	// Env is inherited from process by default; allow caller to set via os.Environ before call.
 	if err := cmd.Start(); err != nil {
 		return err
 	}

@@ -101,9 +101,16 @@ app_id: 740
 start_args: "-dedicated -port 27015"
 ports:
   - 27015/udp
+executable: run.sh          # optional: binary or script; relative to install dir unless absolute
+working_dir: .              # optional: working directory; relative to install dir unless absolute
+command_template: |
+  ./run.sh {{args}}         # optional: full command template; supports {{install_dir}}, {{app_id}}, {{name}}, {{args}}
+env:                        # optional: environment variables
+  LD_LIBRARY_PATH: ".:${LD_LIBRARY_PATH}"
+log_file: logs/server.log   # optional: log file path to tail in monitor
 ```
 
-Place game-specific configs in `configs/` or override via flags.
+Place game-specific configs in `configs/` or override via flags. If `command_template` is provided, it overrides `executable` + args assembly.
 
 ## Contributing
 

@@ -7,11 +7,14 @@ import (
 )
 
 type GameConfig struct {
-	AppID      int      `yaml:"app_id"`
-	StartArgs  string   `yaml:"start_args"`
-	Ports      []string `yaml:"ports"`
-	Executable string   `yaml:"executable"`  // optional path to the server binary relative to install dir or absolute
-	WorkingDir string   `yaml:"working_dir"` // optional working directory relative to install dir or absolute
+	AppID           int               `yaml:"app_id"`
+	StartArgs       string            `yaml:"start_args"`
+	Ports           []string          `yaml:"ports"`
+	Executable      string            `yaml:"executable"`       // optional path to the server binary relative to install dir or absolute
+	WorkingDir      string            `yaml:"working_dir"`      // optional working directory relative to install dir or absolute
+	CommandTemplate string            `yaml:"command_template"` // full command template with placeholders
+	Env             map[string]string `yaml:"env"`              // optional env vars
+	LogFile         string            `yaml:"log_file"`         // optional log file path
 }
 
 func LoadGameConfig(path string) (GameConfig, error) {

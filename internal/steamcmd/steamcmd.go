@@ -21,13 +21,21 @@ func (c *Client) exec(ctx context.Context, args ...string) error {
 		bin = "steamcmd"
 	}
 	var lastErr error
-	for attempt := 0; attempt < 3; attempt++ {
+	retries := c.cfg.Retries
+	if retries <= 0 {
+		retries = 3
+	}
+	backoff := c.cfg.Backoff
+	if backoff <= 0 {
+		backoff = 1000
+	}
+	for attempt := 0; attempt < retries; attempt++ {
 		cmd := exec.CommandContext(ctx, bin, args...)
 		stdout, _ := cmd.StdoutPipe()
 		stderr, _ := cmd.StderrPipe()
 		if err := cmd.Start(); err != nil {
 			lastErr = err
-			time.Sleep(time.Duration(attempt+1) * time.Second)
+			time.Sleep(time.Duration((attempt+1)*backoff) * time.Millisecond)
 			continue
 		}
 
@@ -54,14 +62,14 @@ func (c *Client) exec(ctx context.Context, args ...string) error {
 
 		if err := cmd.Wait(); err != nil {
 			lastErr = err
-			time.Sleep(time.Duration(attempt+1) * time.Second)
+			time.Sleep(time.Duration((attempt+1)*backoff) * time.Millisecond)
 			continue
 		}
 		if ok && !fail {
 			return nil
 		}
 		lastErr = errors.New("steamcmd did not report success")
-		time.Sleep(time.Duration(attempt+1) * time.Second)
+		time.Sleep(time.Duration((attempt+1)*backoff) * time.Millisecond)
 	}
 	if lastErr == nil {
 		lastErr = errors.New("steamcmd failed without error detail")
