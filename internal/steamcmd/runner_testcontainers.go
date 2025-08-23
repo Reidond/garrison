@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 
+	dcontainer "github.com/docker/docker/api/types/container"
 	tc "github.com/testcontainers/testcontainers-go"
 )
 
@@ -20,6 +21,12 @@ type containerRunner struct {
 
 // newContainerRunner starts a steamcmd container and returns a runner.
 func newContainerRunner(ctx context.Context, image string) (*containerRunner, error) {
+	return newContainerRunnerWithMounts(ctx, image, nil)
+}
+
+// newContainerRunnerWithMounts starts a steamcmd container with optional bind mounts and returns a runner.
+// Each bind should be in the form "hostPath:containerPath[:mode]".
+func newContainerRunnerWithMounts(ctx context.Context, image string, binds []string) (*containerRunner, error) {
 	if image == "" {
 		// Default to cm2network/steamcmd:latest, a commonly used steamcmd image.
 		image = "cm2network/steamcmd:latest"
@@ -28,6 +35,11 @@ func newContainerRunner(ctx context.Context, image string) (*containerRunner, er
 		Image:        image,
 		ExposedPorts: []string{},
 		Entrypoint:   []string{"/bin/sh", "-lc", "sleep infinity"},
+		HostConfigModifier: func(hc *dcontainer.HostConfig) {
+			if len(binds) > 0 {
+				hc.Binds = append(hc.Binds, binds...)
+			}
+		},
 	}
 	cont, err := tc.GenericContainer(ctx, tc.GenericContainerRequest{
 		ContainerRequest: req,
