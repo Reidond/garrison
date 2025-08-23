@@ -62,6 +62,18 @@ func (c *MonitorCmd) Run(root *Root) error {
 						break
 					}
 				}
+				// Probe first UDP port with SRCDS A2S_INFO if present
+				for _, p := range ports {
+					if p.Proto == "udp" {
+						addr := fmt.Sprintf("127.0.0.1:%d", p.Port)
+						if server.ProbeSRCDSInfo(addr, 500*time.Millisecond) {
+							msg += fmt.Sprintf(" udp:%d=a2s", p.Port)
+						} else {
+							msg += fmt.Sprintf(" udp:%d=noresp", p.Port)
+						}
+						break
+					}
+				}
 				fmt.Printf("%s: %s\n", c.Name, msg)
 				// Tail log if configured
 				if logFile != "" {

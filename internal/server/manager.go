@@ -63,7 +63,27 @@ func (m *Manager) StartWithOptions(opts ProcessOptions, executable string, args 
 	cmd := exec.Command(executable, args...)
 	cmd.Dir = m.Metadata.InstallDir
 	if opts.Env != nil {
-		cmd.Env = opts.Env
+		// Expand ${VAR} style env references against current environment
+		expanded := make([]string, 0, len(opts.Env))
+		for _, e := range opts.Env {
+			expanded = append(expanded, os.ExpandEnv(e))
+		}
+		cmd.Env = expanded
+	}
+	// Drop privileges on Unix if requested
+	if opts.UID > 0 || opts.GID > 0 || len(opts.Groups) > 0 {
+		cmd.SysProcAttr = &syscall.SysProcAttr{Credential: &syscall.Credential{}}
+		if opts.UID > 0 {
+			cmd.SysProcAttr.Credential.Uid = uint32(opts.UID)
+		}
+		if opts.GID > 0 {
+			cmd.SysProcAttr.Credential.Gid = uint32(opts.GID)
+		}
+		if len(opts.Groups) > 0 {
+			gs := make([]uint32, len(opts.Groups))
+			for i, g := range opts.Groups { gs[i] = uint32(g) }
+			cmd.SysProcAttr.Credential.Groups = gs
+		}
 	}
 	if err := cmd.Start(); err != nil {
 		return err
