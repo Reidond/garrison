@@ -1,0 +1,6 @@
+app_id: 740
+start_args: "-dedicated -port 27015"
+ports:
+  - 27015/udp
+executable: run.sh
+working_dir: .
