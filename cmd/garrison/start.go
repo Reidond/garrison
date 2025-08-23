@@ -86,7 +86,9 @@ func (c *StartCmd) Run(root *Root) error {
 	m.Metadata.InstallDir = workDir
 	// apply env
 	var opts server.ProcessOptions
-	if len(env) > 0 { opts.Env = server.InheritEnv(env) }
+	if len(env) > 0 {
+		opts.Env = server.InheritEnv(env)
+	}
 	if err := m.StartWithOptions(opts, exe, args...); err != nil {
 		return fmt.Errorf("failed to start: %w", err)
 	}
