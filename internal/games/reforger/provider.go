@@ -145,30 +145,48 @@ start_args: ""
 }
 
 func (Provider) InitConfig(ctx context.Context, outputPath string, options map[string]string) error {
-	// Expected options (stringly-typed): name, scenarioId, a2sPort, publicPort, rconPort, rconPassword, admins (comma-separated), fastValidation (true/false)
+	// Expected options: name, scenarioId, a2sPort, publicPort, rconPort, rconPassword, admins (comma-separated), fastValidation (true/false)
 	get := func(k, def string) string {
 		if v, ok := options[k]; ok {
 			return v
 		}
 		return def
 	}
-	atoi := func(s string, def int) int {
-		if s == "" {
-			return def
-		}
-		if n, err := strconv.Atoi(s); err == nil {
-			return n
-		}
-		return def
+	// Required: scenarioId
+	scenario := strings.TrimSpace(get("scenarioId", ""))
+	if scenario == "" {
+		return fmt.Errorf("scenarioId is required")
 	}
-	atob := func(s string, def bool) bool {
-		if s == "" {
-			return def
+	// Ports validation
+	parsePort := func(key string, def int) (int, error) {
+		if v, ok := options[key]; ok && strings.TrimSpace(v) != "" {
+			n, err := strconv.Atoi(v)
+			if err != nil {
+				return 0, fmt.Errorf("invalid %s: %v", key, err)
+			}
+			if n < 1 || n > 65535 {
+				return 0, fmt.Errorf("invalid %s: must be 1-65535", key)
+			}
+			return n, nil
 		}
-		if v, err := strconv.ParseBool(s); err == nil {
-			return v
+		return def, nil
+	}
+	publicPort, err := parsePort("publicPort", 2001)
+	if err != nil {
+		return err
+	}
+	a2sPort, err := parsePort("a2sPort", 17777)
+	if err != nil {
+		return err
+	}
+	// Booleans and lists
+	fastValidation := true
+	if v, ok := options["fastValidation"]; ok && strings.TrimSpace(v) != "" {
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			return fmt.Errorf("invalid fastValidation: %v", err)
 		}
-		return def
+		fastValidation = b
 	}
 	splitCSV := func(s string) []string {
 		if strings.TrimSpace(s) == "" {
@@ -185,19 +203,23 @@ func (Provider) InitConfig(ctx context.Context, outputPath string, options map[s
 		return out
 	}
 	cfg := RootConfig{
-		PublicPort: atoi(get("publicPort", "2001"), 2001),
-		A2S:        &A2SConfig{Port: atoi(get("a2sPort", "17777"), 17777)},
+		PublicPort: publicPort,
+		A2S:        &A2SConfig{Port: a2sPort},
 		Game: GameConfig{
 			Name:       get("name", "My Server"),
 			Admins:     splitCSV(get("admins", "")),
-			ScenarioID: get("scenarioId", ""),
+			ScenarioID: scenario,
 			GameProperties: GameProperties{
-				FastValidation: atob(get("fastValidation", "true"), true),
+				FastValidation: fastValidation,
 			},
 		},
 	}
-	if pw := get("rconPassword", ""); pw != "" {
-		cfg.RCON = &RCONConfig{Port: atoi(get("rconPort", "19999"), 19999), Password: pw}
+	if pw := strings.TrimSpace(get("rconPassword", "")); pw != "" {
+		rconPort, err := parsePort("rconPort", 19999)
+		if err != nil {
+			return err
+		}
+		cfg.RCON = &RCONConfig{Port: rconPort, Password: pw}
 	}
 	return cfg.WriteJSON(outputPath)
 }

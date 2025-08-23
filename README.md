@@ -12,6 +12,23 @@ Garrison is a Go-based command-line tool for managing dedicated Steam game serve
 - **Persistence**: Stores server metadata in `~/.garrison/` for easy listing and management.
 - **Extensibility**: Add support for new games via configuration files.
 
+## Supported games and provider features
+
+Garrison includes a small provider layer for game-specific helpers. Current providers:
+
+- Reforger (Arma Reforger)
+  - list-scenarios: Queries the server binary with `-listScenarios` and prints parsed `.conf` scenario paths.
+  - template: Prints a ready-made YAML template for starting the server via `garrison start` (see `configs/reforger-example.yaml`).
+  - init-config: Creates the native JSON server config (e.g., `Configs/ServerConfig.json`). Required option: `scenarioId`.
+
+Generic commands that use providers:
+
+- `garrison game list-scenarios --game reforger [--install-dir ...] [--binary ...] [--timeout ...] [--raw]`
+- `garrison game template --game reforger`
+- `garrison game init-config --game reforger --scenario-id ... --output ./Configs/ServerConfig.json`
+
+The legacy alias `garrison reforger` remains for convenience and delegates to the same provider implementations.
+
 ## Installation
 
 ### Prerequisites

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -87,6 +88,7 @@ type GameInitConfigCmd struct {
 	RCONPassword   string   `help:"RCON password (required to enable RCON)"`
 	Admins         []string `help:"List of admin IDs"`
 	FastValidation bool     `help:"Enable fastValidation (if supported)" default:"true"`
+	DryRun         bool     `help:"Print the generated config to stdout without writing the file" default:"false"`
 }
 
 func (c *GameInitConfigCmd) Run(root *Root) error {
@@ -108,12 +110,35 @@ func (c *GameInitConfigCmd) Run(root *Root) error {
 		"admins":         strings.Join(c.Admins, ","),
 		"fastValidation": fmt.Sprintf("%t", c.FastValidation),
 	}
-	if err := p.InitConfig(root.Context(), out, opts); err != nil {
-		if err == games.ErrNotSupported {
-			return fmt.Errorf("game %q does not support init-config", c.Game)
+	if c.DryRun {
+		// Generate to a temp file, print to stdout, then remove.
+		tmpf, err := os.CreateTemp("", "garrison-config-*.json")
+		if err != nil {
+			return err
 		}
-		return err
+		tmp := tmpf.Name()
+		tmpf.Close()
+		defer os.Remove(tmp)
+		if err := p.InitConfig(root.Context(), tmp, opts); err != nil {
+			if err == games.ErrNotSupported {
+				return fmt.Errorf("game %q does not support init-config", c.Game)
+			}
+			return err
+		}
+		b, err := os.ReadFile(tmp)
+		if err != nil {
+			return err
+		}
+		fmt.Print(string(b))
+		return nil
+	} else {
+		if err := p.InitConfig(root.Context(), out, opts); err != nil {
+			if err == games.ErrNotSupported {
+				return fmt.Errorf("game %q does not support init-config", c.Game)
+			}
+			return err
+		}
+		fmt.Printf("Wrote %s config to: %s\n", c.Game, out)
 	}
-	fmt.Printf("Wrote %s config to: %s\n", c.Game, out)
 	return nil
 }
