@@ -81,7 +81,9 @@ func (m *Manager) StartWithOptions(opts ProcessOptions, executable string, args 
 		}
 		if len(opts.Groups) > 0 {
 			gs := make([]uint32, len(opts.Groups))
-			for i, g := range opts.Groups { gs[i] = uint32(g) }
+			for i, g := range opts.Groups {
+				gs[i] = uint32(g)
+			}
 			cmd.SysProcAttr.Credential.Groups = gs
 		}
 	}
