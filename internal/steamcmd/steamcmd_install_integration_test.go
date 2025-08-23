@@ -64,6 +64,7 @@ func TestInstallUpdateApp(t *testing.T) {
 		Backoff:      1500,
 		OnOutput:     func(s string) { t.Logf("[steamcmd] %s", s) },
 		OutputPrefix: "",
+		StreamOutput: true,
 	}, r)
 
 	// Install app

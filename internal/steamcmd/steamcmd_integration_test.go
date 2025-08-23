@@ -37,6 +37,7 @@ func TestSteamcmdPingLogin(t *testing.T) {
 		Backoff:      500,
 		OnOutput:     func(s string) { t.Logf("[steamcmd] %s", s) },
 		OutputPrefix: "",
+		StreamOutput: true,
 	}, r)
 	if err := c.PingLogin(ctx); err != nil {
 		// Fetch logs for easier diagnosis

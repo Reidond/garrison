@@ -10,6 +10,5 @@ type Config struct {
 	// OnOutput, if set, is called for each output line from steamcmd. Useful for tee-style logging in tests.
 	OnOutput     func(line string)
 	OutputPrefix string // optional prefix added before each output line passed to OnOutput
+	StreamOutput bool   // if true and runner supports streaming, emit output lines as the command runs
 }
-
-// end

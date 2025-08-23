@@ -4,6 +4,7 @@
 package steamcmd
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -74,4 +75,36 @@ func (r *containerRunner) Run(ctx context.Context, bin string, args ...string) (
 		return out, exitCode, fmt.Errorf("exec error: %w; out=%s", err, out)
 	}
 	return out, exitCode, nil
+}
+
+// RunStreaming implements StreamingRunner for containerRunner by reading from the Exec reader
+// and forwarding chunks to the provided callbacks.
+func (r *containerRunner) RunStreaming(ctx context.Context, bin string, args []string, onStdout func([]byte), onStderr func([]byte)) (int, error) {
+	// testcontainers Exec returns a single combined reader; we'll treat it as stdout.
+	if bin == "" {
+		bin = r.bin
+	}
+	cmd := append([]string{bin}, args...)
+	exitCode, rdr, err := r.container.Exec(ctx, cmd)
+	if rdr != nil {
+		// stream in chunks; preserve line breaks
+		buf := make([]byte, 4096)
+		for {
+			n, rerr := rdr.Read(buf)
+			if n > 0 && onStdout != nil {
+				// copy to avoid data race on buf reuse
+				chunk := make([]byte, n)
+				copy(chunk, buf[:n])
+				onStdout(chunk)
+			}
+			if rerr != nil {
+				break
+			}
+		}
+		// drain remaining if any
+		if rem, _ := io.ReadAll(rdr); len(rem) > 0 && onStdout != nil {
+			onStdout(bytes.Clone(rem))
+		}
+	}
+	return exitCode, err
 }
