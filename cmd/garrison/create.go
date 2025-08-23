@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"path/filepath"
+	"strings"
 
 	"github.com/Reidond/garrison/internal/server"
 	"github.com/Reidond/garrison/internal/utils"
@@ -12,14 +13,25 @@ import (
 type CreateCmd struct {
 	Name  string `arg:"" help:"Server name"`
 	AppID int    `required:"" help:"Steam App ID"`
-	Dir   string `help:"Installation directory" default:"." type:"path"`
+	Dir   string `help:"Installation directory (default: ~/.garrison/instances/<name>/install)" type:"path"`
 }
 
 func (c *CreateCmd) Run(root *Root) error {
-	// Expand paths
-	dir, err := utils.ExpandPath(c.Dir)
-	if err != nil {
-		return err
+	// Determine installation directory
+	var dir string
+	var err error
+	if strings.TrimSpace(c.Dir) == "" {
+		// Default to ~/.garrison/instances/<name>/install
+		base, berr := utils.ExpandPath("~/.garrison/instances")
+		if berr != nil {
+			return berr
+		}
+		dir = filepath.Join(base, c.Name, "install")
+	} else {
+		dir, err = utils.ExpandPath(c.Dir)
+		if err != nil {
+			return err
+		}
 	}
 	if err := utils.EnsureDir(dir, 0o755); err != nil {
 		return err

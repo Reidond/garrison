@@ -22,6 +22,10 @@ func (c *InstallCmd) Run(root *Root) error {
 	if err != nil {
 		return err
 	}
+	// Ensure install directory exists
+	if err := utils.EnsureDir(md.InstallDir, 0o755); err != nil {
+		return err
+	}
 	// Configure streaming and tee if stderr is a TTY
 	cfg := steamcmd.Config{}
 	if utils.DefaultStderrIsTTY() {
