@@ -22,7 +22,6 @@ type Root struct {
 	Details DetailsCmd `cmd:"details" help:"Show server details"`
 	List    ListCmd    `cmd:"list" help:"List all managed servers"`
 	Delete  DeleteCmd  `cmd:"delete" help:"Delete a server"`
-	Game    GameCmd    `cmd:"game" help:"Game-specific helpers (extensible)"`
 
 	// internal runtime context
 	runCtx context.Context    `kong:"-"`

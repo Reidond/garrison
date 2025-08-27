@@ -20,8 +20,6 @@ type Provider interface {
 	ID() string
 	// Name is a human-friendly name.
 	Name() string
-	// TemplateYAML returns a ready-made YAML game config template.
-	TemplateYAML() []byte
 	// InitConfig writes a native game config (e.g., JSON) to the given path with provided options.
 	// Providers that don't support scaffolding should return ErrNotSupported.
 	InitConfig(ctx context.Context, outputPath string, options map[string]string) error

@@ -16,8 +16,7 @@ ports:
   - "19999/udp"  # RCON
 
 # A ready-to-use command template. Placeholders: {{install_dir}}, {{app_id}}, {{name}}, {{args}}
-# The -config file below should be generated via:
-#   garrison reforger init-config --scenario-id "<path/to/scenario.conf>" --output ./Configs/ServerConfig.json
+# The -config file can be generated using: garrison create <name> <app_id> --init-config
 # and stored under the install dir (Configs/ServerConfig.json).
 command_template: >-
   {{install_dir}}/ArmaReforgerServer
@@ -35,3 +34,27 @@ start_args: ""
 
 # Optional log file for the server process (managed externally)
 # log_file: "{{install_dir}}/garrison-server.log"
+
+# Game-specific init-config parameters
+game:
+  # Default init config parameters for this game
+  init_config:
+    # Default server name template (can use {{name}} placeholder)
+    name: "{{name}}"
+
+    # Default scenario (leave empty to require specification)
+    scenarioId: ""
+
+    # Default network ports
+    a2sPort: 17777
+    publicPort: 2001
+    rconPort: 19999
+
+    # Default RCON password (leave empty to disable RCON)
+    rconPassword: ""
+
+    # Default admin IDs (empty list = no admins)
+    admins: []
+
+    # Enable fast validation
+    fastValidation: true

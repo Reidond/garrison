@@ -21,26 +21,6 @@ func init() {
 	games.Register(Provider{})
 }
 
-func (Provider) TemplateYAML() []byte {
-	// Reuse the repository template, but return inline to avoid imports.
-	return []byte(`# Example garrison game config for Arma Reforger server
-app_id: 1874900
-executable: "ArmaReforgerServer"
-working_dir: "."
-ports:
-  - "2001/udp"
-  - "17777/udp"
-  - "19999/udp"
-command_template: >-
-  {{install_dir}}/ArmaReforgerServer
-  -profile {{install_dir}}/profile
-  -config {{install_dir}}/Configs/ServerConfig.json
-  -maxFPS 120
-  {{args}}
-start_args: ""
-`)
-}
-
 func (Provider) InitConfig(ctx context.Context, outputPath string, options map[string]string) error {
 	// Expected options: name, scenarioId, a2sPort, publicPort, rconPort, rconPassword, admins (comma-separated), fastValidation (true/false)
 	get := func(k, def string) string {

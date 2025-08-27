@@ -15,6 +15,22 @@ type GameConfig struct {
 	CommandTemplate string            `yaml:"command_template"` // full command template with placeholders
 	Env             map[string]string `yaml:"env"`              // optional env vars
 	LogFile         string            `yaml:"log_file"`         // optional log file path
+	Game            *GameSpecific     `yaml:"game"`             // game-specific configuration
+}
+
+type GameSpecific struct {
+	InitConfig *InitConfigParams `yaml:"init_config"`
+}
+
+type InitConfigParams struct {
+	Name           string   `yaml:"name"`
+	ScenarioID     string   `yaml:"scenarioId"`
+	A2SPort        int      `yaml:"a2sPort"`
+	PublicPort     int      `yaml:"publicPort"`
+	RCONPort       int      `yaml:"rconPort"`
+	RCONPassword   string   `yaml:"rconPassword"`
+	Admins         []string `yaml:"admins"`
+	FastValidation bool     `yaml:"fastValidation"`
 }
 
 func LoadGameConfig(path string) (GameConfig, error) {
@@ -28,5 +44,3 @@ func LoadGameConfig(path string) (GameConfig, error) {
 	}
 	return cfg, nil
 }
-
-// end
