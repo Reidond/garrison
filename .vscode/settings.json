@@ -3,16 +3,19 @@
     "mise.updateEnvAutomatically": true,
     "mise.configureExtensionsAutomatically": true,
     "mise.configureExtensionsUseShims": true,
-    "go.goroot": "/home/z/.local/share/mise/installs/go/1.24.6",
+    "mise.configureExtensionsUseSymLinks": true,
+    "go.goroot": "${workspaceFolder}/.vscode/mise-tools/goRoot",
     "debug.javascript.defaultRuntimeExecutable": {
-        "pwa-node": "/home/z/.local/share/mise/shims/node"
+        "pwa-node": "${workspaceFolder}/.vscode/mise-tools/node"
     },
     "go.alternateTools": {
-        "go": "/home/z/.local/share/mise/shims/go",
-        "dlv": "/home/z/.local/share/mise/shims/dlv",
-        "gopls": "/home/z/.local/share/mise/shims/gopls"
+        "go": "${workspaceFolder}/.vscode/mise-tools/go",
+        "dlv": "${workspaceFolder}/.vscode/mise-tools/dlv",
+        "gopls": "${workspaceFolder}/.vscode/mise-tools/gopls"
     },
     "gopls": {
-        "buildFlags": ["-tags=integration"]
+        "buildFlags": [
+            "-tags=integration"
+        ]
     }
 }
